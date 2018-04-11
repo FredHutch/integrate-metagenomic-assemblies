@@ -7,6 +7,7 @@ import gzip
 import json
 import uuid
 import boto3
+import shutil
 import logging
 import argparse
 import subprocess
@@ -81,7 +82,7 @@ def open_handle(path, mode="rt"):
 
 
 def deduplicate_proteins(
-    prot_folder,
+    protein_fps,
     temp_folder,
     output_name,
     prot_suffix="fastp",
@@ -111,13 +112,13 @@ def deduplicate_proteins(
     assert os.path.exists(all_prot_fp) is False
     with open(all_prot_fp, "wt") as fo:
         # Rename the proteins to include the sample name
-        for fp in list_folder(prot_folder):
+        for fp in protein_fps:
             if fp.endswith(("." + prot_suffix, "." + prot_suffix + ".gz")):
                 # Get the sample name from the file path
                 if fp.endswith(".gz"):
-                    sample_name = fp.replace("." + prot_suffix + ".gz", "")
+                    sample_name = fp.split("/")[-1].replace("." + prot_suffix + ".gz", "")
                 else:
-                    sample_name = fp.replace("." + prot_suffix, "")
+                    sample_name = fp.split("/")[-1].replace("." + prot_suffix, "")
                 # Make sure this is not a duplicated name
                 assert sample_name not in sample_names, "Duplicate name: " + sample_name
                 sample_names.add(sample_name)
@@ -128,7 +129,7 @@ def deduplicate_proteins(
                 # Parse as a FASTA
                 for header, seq in SimpleFastaParser(
                     # Open the file, regardless of gzip or s3
-                    open_handle(os.path.join(prot_folder, fp))
+                    open_handle(fp)
                 ):
                     n_prots += 1
                     # Strip the white space from the header
@@ -193,7 +194,7 @@ def deduplicate_proteins(
         assert cluster_name in cluster_members
         output.append({
             "cluster": cluster_name,
-            "sequences": seq,
+            "sequence": seq,
             "members": cluster_members[cluster_name]
         })
     logging.info("Read in {:,} clusters".format(len(output)))
@@ -202,16 +203,33 @@ def deduplicate_proteins(
 
 
 def return_results(
-    temp_folder,
-    output_name,
+    all_output_files,
     output_folder
 ):
-    """Make two files (FASTA + JSON) and write to the output folder."""
-    pass
+    """Upload all of the final result files to the output folder."""
+    # Make sure the output folder ends with "/"
+    if output_folder.endswith("/") is False:
+        output_folder = output_folder + "/"
+
+    # Make sure the local files exist    
+    for fp in all_output_files:
+        assert os.path.exists(fp), "File does not exist locally: " + fp
+
+    # Check to see if this is an S3 folder to upload to
+    if output_folder.startswith("s3://"):
+        logging.info("Uploading to S3 folder: " + output_folder)
+        for fp in all_output_files:
+            run_cmds(["aws", "s3", "cp", fp, output_folder])
+    else:
+        logging.info("Copying to local folder: " + output_folder)
+        assert os.path.exists(output_folder)
+        for fp in all_output_files:
+            run_cmds(["mv", fp, output_folder])
+    logging.info("Copied {} files to {}".format(len(all_output_files), output_folder))
 
 
 def summarize_proteins(
-    gff_folder,
+    gff_fps,
     dedup_proteins,
     gff_suffix="gff"
 ):
@@ -225,14 +243,14 @@ def summarize_proteins(
 
     # Iterate over the files in the gff_folder
     sample_names = set([])
-    for fp in list_folder(gff_folder):
+    for fp in gff_fps:
         # Check to see if they are GFF files
         if fp.endswith(("." + gff_suffix, "." + gff_suffix + ".gz")):
             # Get the sample name from the file path
             if fp.endswith(".gz"):
-                sample_name = fp.replace("." + gff_suffix + ".gz", "")
+                sample_name = fp.split("/")[-1].replace("." + gff_suffix + ".gz", "")
             else:
-                sample_name = fp.replace("." + gff_suffix, "")
+                sample_name = fp.split("/")[-1].replace("." + gff_suffix, "")
             # Make sure this is not a duplicated name
             assert sample_name not in sample_names, "Duplicate name: " + sample_name
             sample_names.add(sample_name)
@@ -240,9 +258,7 @@ def summarize_proteins(
             logging.info("Reading from " + fp)
             # Read in as a pandas DataFrame
             prots = pd.read_table(
-                open_handle(
-                    os.path.join(gff_folder, fp)
-                ),
+                open_handle(fp),
                 comment="#",
                 header=None
             )
@@ -347,14 +363,6 @@ def summarize_proteins(
     return list(output.values())
 
 
-def index_proteins(
-    output_name,
-    temp_folder
-):
-    """Make a DIAMOND database for the proteins."""
-    pass
-
-
 def write_results(
     dedup_proteins,
     prot_summary,
@@ -362,7 +370,105 @@ def write_results(
     output_name,
 ):
     """Write all of the results to a set of files."""
-    pass
+    # Write out the centroids in FASTA format
+    centroid_fasta = os.path.join(temp_folder, output_name + ".fastp")
+    logging.info("Writing out " + centroid_fasta)
+    with open(centroid_fasta, "wt") as fo:
+        logging.info("Writing out centroids")
+        for cluster in dedup_proteins:
+            fo.write(">{}\n{}\n".format(
+                cluster["cluster"],
+                cluster["sequence"]
+            ))
+    # Compress the file
+    run_cmds(["gzip", centroid_fasta])
+    centroid_fasta = centroid_fasta + ".gz"
+
+    # Make a DIAMOND database of the centroids
+    logging.info("Making a DIAMOND database for the centroids")
+    run_cmds([
+        "diamond", "makedb", 
+        "--db", os.path.join(temp_folder, output_name),
+        "--in", centroid_fasta
+    ])
+    dmnd_fp = os.path.join(temp_folder, output_name + ".dmnd")
+    assert os.path.exists(dmnd_fp)
+
+    # Write out the protein structure information in JSON format
+    summary_json = os.path.join(temp_folder, output_name + ".json")
+    logging.info("Writing out " + summary_json)
+    with open(summary_json, "wt") as fo:
+        json.dump(prot_summary, fo)
+    # Compress the file
+    run_cmds(["gzip", summary_json])
+    summary_json = summary_json + ".gz"
+
+    # Make a network in SIF format
+    network_sif = os.path.join(temp_folder, output_name + ".sif")
+    logging.info("Writing out " + network_sif)
+    with open(network_sif, "wt") as fo:
+        for cluster_info in prot_summary:
+            cluster_id = cluster_info["protein_id"]
+            for rel_loc, neighbors in cluster_info["neighbors"].items():
+                fo.write("{}\t{}\t{}\n".format(
+                    cluster_id,
+                    rel_loc,
+                    "\t".join(list(neighbors.keys()))
+                ))
+    # Compress the file
+    run_cmds(["gzip", network_sif])
+    network_sif = network_sif + ".gz"
+
+    all_output_files = [
+        centroid_fasta,
+        summary_json,
+        dmnd_fp,
+        network_sif
+    ]
+
+    return all_output_files
+
+
+def overlapping_protein_gff_files(
+    prot_folder,
+    gff_folder,
+    prot_suffix="fastp",
+    gff_suffix="gff"
+):
+    # Key by sample name, file type, and path
+    all_fps = defaultdict(lambda: defaultdict(dict))
+
+    for folder, suffix, file_type in [
+        (prot_folder, prot_suffix, "protein_fasta"),
+        (gff_folder, gff_suffix, "gff")
+    ]:
+        for fp in list_folder(folder):
+            if fp.endswith(("." + suffix, "." + suffix + ".gz")):
+                # Get the sample name from the file path
+                if fp.endswith(".gz"):
+                    sample_name = fp.replace("." + suffix + ".gz", "")
+                else:
+                    sample_name = fp.replace("." + suffix, "")
+                # Make sure this is not a duplicated name
+                assert file_type not in all_fps[sample_name], "Duplicate name: " + sample_name
+                all_fps[sample_name][file_type] = os.path.join(folder, fp)
+
+    # Subset to those samples with both protein and GFF files available
+    all_fps = {
+        sample_name: sample_fps
+        for sample_name, sample_fps in all_fps.items()
+        if len(sample_fps) == 2
+    }
+    logging.info("Found {:,} samples with both protein FASTA and GFF information".format(len(all_fps)))
+    prot_fps = [
+        sample_fps["protein_fasta"]
+        for sample_fps in all_fps.values()
+    ]
+    gff_fps = [
+        sample_fps["gff"]
+        for sample_fps in all_fps.values()
+    ]
+    return prot_fps, gff_fps
 
 
 def integrate_assemblies(
@@ -396,6 +502,14 @@ def integrate_assemblies(
     consoleHandler.setFormatter(logFormatter)
     rootLogger.addHandler(consoleHandler)
 
+    # Get the set of samples that have both proteins and GFF files
+    protein_fps, gff_fps = overlapping_protein_gff_files(
+        prot_folder,
+        gff_folder,
+        gff_suffix=gff_suffix,
+        prot_suffix=prot_suffix
+    )
+
     # Deduplicate protein sequences by clustering
     try:
         # Output is a list of dicts, with:
@@ -403,7 +517,7 @@ def integrate_assemblies(
         # "sequences"
         # "members"
         dedup_proteins = deduplicate_proteins(
-            prot_folder,
+            protein_fps,
             temp_folder,
             output_name,
             prot_suffix=prot_suffix
@@ -415,7 +529,7 @@ def integrate_assemblies(
     try:
         # Output is a list describing all proteins, as in the Readme
         prot_summary = summarize_proteins(
-            gff_folder,
+            gff_fps,
             dedup_proteins,
             gff_suffix=gff_suffix
         )
@@ -424,7 +538,7 @@ def integrate_assemblies(
 
     # Write out the results
     try:
-        write_results(
+        all_output_files = write_results(
             dedup_proteins,
             prot_summary,
             temp_folder,
@@ -433,26 +547,20 @@ def integrate_assemblies(
     except:
         exit_and_clean_up(temp_folder)
 
-    # Make a DIAMOND database for the final proteins
-    try:
-        index_proteins(
-            output_name,
-            temp_folder
-        )
-    except:
-        exit_and_clean_up(temp_folder)
+    # Add the log file to the output files
+    all_output_files.append(log_fp)
 
     # Upload all of the results
     try:
         return_results(
-            temp_folder,
-            output_name,
+            all_output_files,
             output_folder
         )
     except:
         exit_and_clean_up(temp_folder)
 
-    exit_and_clean_up(temp_folder)
+    logging.info("All done, cleaning up")
+    shutil.rmtree(temp_folder)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="""
