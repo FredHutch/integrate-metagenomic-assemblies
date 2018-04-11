@@ -3,8 +3,38 @@
 import os
 import sys
 import uuid
+import boto3
+import logging
 import argparse
 from batch_helpers.helpers import run_cmds, exit_and_clean_up
+
+
+def list_folder(folder):
+    """List the contents of a folder, either local or on S3."""
+    # Make sure the folder ends with a trailing slash
+    if folder.endswith("/") is False:
+        folder = folder + "/"
+
+    # Check to see if it is an S3 URL
+    if folder.startswith("s3://"):
+        # Get the bucket name
+        bucket = folder[5:].split("/", 1)[0]
+        # Get the prefix path
+        prefix = "/".join(folder[5:].split("/")[1:])
+        # Set up the connection
+        conn = boto3.client('s3')
+        # Iterate over the contents of the folder
+        for key in conn.list_objects(
+            Bucket=bucket,
+            Prefix=prefix
+        )['Contents']:
+            # Yield the filepath within the folder
+            yield key['Key'].replace(prefix, "")
+    else:
+        # Treat as as local path
+        assert os.path.exists(folder), "Folder does not exist ({})".format(folder)
+        for fp in os.listdir(folder):
+            yield fp
 
 
 def deduplicate_proteins(
@@ -15,6 +45,11 @@ def deduplicate_proteins(
     # "protein_id"
     # "sequences"
     # "members"
+
+    # Make a single file with all of the proteins
+    # Rename the proteins to include the sample name
+    for fp in list_folder(prot_folder):
+        print(fp)
     return {}
 
 
@@ -66,6 +101,23 @@ def integrate_assemblies(
     temp_folder = os.path.join(temp_folder, str(uuid.uuid4())[:8])
     assert os.path.exists(temp_folder) is False
     os.mkdir(temp_folder)
+
+    # Set up logging
+    log_fp = os.path.join(temp_folder, output_name + ".log")
+    logFormatter = logging.Formatter(
+        '%(asctime)s %(levelname)-8s [integrate_assemblies.py] %(message)s'
+    )
+    rootLogger = logging.getLogger()
+    rootLogger.setLevel(logging.INFO)
+
+    # Write to file
+    fileHandler = logging.FileHandler(log_fp)
+    fileHandler.setFormatter(logFormatter)
+    rootLogger.addHandler(fileHandler)
+    # Also write to STDOUT
+    consoleHandler = logging.StreamHandler()
+    consoleHandler.setFormatter(logFormatter)
+    rootLogger.addHandler(consoleHandler)
 
     # Deduplicate protein sequences by clustering
     try:
