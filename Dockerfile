@@ -8,9 +8,11 @@ RUN apt update && \
     libcurl4-openssl-dev make gcc zlib1g-dev curl \
     cmake g++ libfile-slurp-perl
 
-# Install some helper code 
-# TODO pin to release
-RUN pip3 install -e git://github.com/FredHutch/aws-batch-helpers.git#egg=aws-batch-helpers
+# Install some helper code (pinned to a commit)
+RUN pip3 install -e git://github.com/FredHutch/aws-batch-helpers.git@b06bcaf56479c24532ddcf87f4c2f3722e260144#egg=aws-batch-helpers
+
+# Install BioPython
+RUN pip3 install biopython
 
 # Install DIAMOND v0.9.10
 RUN cd /usr/local/bin && \
