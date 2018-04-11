@@ -49,12 +49,12 @@ The format of the JSON will be as follows:
 ```
 integrate_assemblies.py \
     --gff-folder "<folder containing GFF files>" \
-    --gff-suffix "<suffix for GFF files>" \
     --prot-folder "<folder containing protein FASTA files>" \
-    --prot-suffix "<suffix for protein FASTA files>" \
     --output-name "<base name for output files>" \
     --output-folder "<folder for output files>"
 ```
+
+`integrate_assemblies.py -h` for more options.
 
 **Installation**
 
