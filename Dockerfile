@@ -6,7 +6,7 @@ RUN apt update && \
     apt-get install -y build-essential wget unzip python3 \
     python3-dev python3-pip bats awscli git \
     libcurl4-openssl-dev make gcc zlib1g-dev curl \
-    cmake g++ libfile-slurp-perl
+    cmake g++ libfile-slurp-perl jq
 
 # Install some helper code (pinned to a commit)
 RUN pip3 install -e git://github.com/FredHutch/aws-batch-helpers.git@b06bcaf56479c24532ddcf87f4c2f3722e260144#egg=aws-batch-helpers
@@ -31,6 +31,10 @@ RUN cd /usr/local/bin && \
     make && \
     make install
 ENV PATH="/usr/local/bin/MMseqs2/build/bin:${PATH}"
+
+# Make the /share directory and set as the default working directory
+RUN mkdir /share
+WORKDIR /share
 
 # Add the entire folder
 ADD . /usr/local/ima

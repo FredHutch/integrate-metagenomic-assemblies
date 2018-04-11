@@ -31,3 +31,13 @@
   echo "$h"
   [[ "$h" =~ "assemblies" ]]
 }
+
+@test "Integration test" {
+    integrate_assemblies.py \
+    --gff-folder /usr/local/ima/tests/ \
+    --prot-folder /usr/local/ima/tests/ \
+    --output-name TEST \
+    --output-folder /usr/local/ima/tests/
+
+    (( $(gunzip -c /usr/local/ima/tests/TEST.json.gz | jq '' | wc -l ) > 0 ))
+}
