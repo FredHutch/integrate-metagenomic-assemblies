@@ -4,11 +4,13 @@ import os
 import io
 import sys
 import gzip
+import json
 import uuid
 import boto3
 import logging
 import argparse
 import subprocess
+import pandas as pd
 from collections import defaultdict
 from Bio.SeqIO.FastaIO import SimpleFastaParser
 from batch_helpers.helpers import run_cmds, exit_and_clean_up
@@ -210,10 +212,139 @@ def return_results(
 
 def summarize_proteins(
     gff_folder,
-    dedup_proteins
+    dedup_proteins,
+    gff_suffix="gff"
 ):
     """Output is a list describing all proteins, as in the Readme."""
-    return {}
+    # Read in all of the protein annotations from the GFF files
+    # For each, record all information about each individual protein,
+    # as well as UPSTREAM and DOWNSTREAM genes
+
+    # Key the output by cluster, but ultimately save it as a flat list of the dictionary values
+    output = {}
+
+    # Iterate over the files in the gff_folder
+    sample_names = set([])
+    for fp in list_folder(gff_folder):
+        # Check to see if they are GFF files
+        if fp.endswith(("." + gff_suffix, "." + gff_suffix + ".gz")):
+            # Get the sample name from the file path
+            if fp.endswith(".gz"):
+                sample_name = fp.replace("." + gff_suffix + ".gz", "")
+            else:
+                sample_name = fp.replace("." + gff_suffix, "")
+            # Make sure this is not a duplicated name
+            assert sample_name not in sample_names, "Duplicate name: " + sample_name
+            sample_names.add(sample_name)
+            # Read the file
+            logging.info("Reading from " + fp)
+            # Read in as a pandas DataFrame
+            prots = pd.read_table(
+                open_handle(
+                    os.path.join(gff_folder, fp)
+                ),
+                comment="#",
+                header=None
+            )
+            logging.info("Read in {:,} total annotations".format(prots.shape[0]))
+            # Set the column names
+            prots.columns = [
+                "seqname", "source", "feature", 
+                "start", "end", "score", "strand", 
+                "frame", "attribute"
+            ]
+            # Subset to only the CDS features
+            prots = prots.loc[prots["feature"] == "CDS"]
+            # Reset the index
+            prots.reset_index(drop=True, inplace=True)
+
+            logging.info("Read in {:,} CDS anotations".format(prots.shape[0]))
+
+            # Add columns with the protein attributes
+            prots = pd.concat([
+                prots,
+                pd.DataFrame([
+                    dict([
+                        field.split("=", 1)
+                        for field in attr.split(";")
+                    ])
+                    for attr in prots["attribute"].values
+                ])
+            ], axis=1)
+
+            # Delete the attributes column
+            del prots["attribute"]
+
+            # Make sure that the ID is an attribute
+            assert "ID" in prots.columns, "ID not found in GFF attributes"
+
+            # Add the sample name to the ID
+            prots["ID"] = sample_name + "_" + prots["ID"]
+
+            # Map to the protein clusters
+            cluster_dict = {
+                member: cluster["cluster"]
+                for cluster in dedup_proteins
+                for member in cluster["members"]
+            }
+            # Add a column with the protein cluster to the DataFrame
+            prots["cluster"] = prots["ID"].apply(cluster_dict.get)
+
+            # Iterate over every CDS feature
+            for ix, r in prots.iterrows():
+                # Set up the format for every record
+                if r["cluster"] not in output:
+                    output[r["cluster"]] = {
+                        "protein_id": r["cluster"],
+                        "members": [],
+                        "annotation": [],
+                        "neighbors": defaultdict(lambda: defaultdict(int))
+                    }
+                # Add information for this member
+                member_annot = r.dropna().to_dict()
+                # Remove extraneous data
+                for k in ["cluster", "score", "source", "inference", "feature", "frame"]:
+                    del member_annot[k]
+                output[r["cluster"]]["members"].append(
+                    member_annot
+                )
+
+                # Add to the cluster-level annotation
+                if "product" in member_annot:
+                    if member_annot["product"] not in output[r["cluster"]]["annotation"]:
+                        output[
+                            r["cluster"]
+                        ]["annotation"].append(
+                            member_annot["product"]
+                        )
+
+                # Now add out the downstream and upstream neighbors
+                if r["strand"] == "+":
+                    downstream_ix = ix + 1
+                    upstream_ix = ix - 1
+                elif r["strand"] == "-":
+                    downstream_ix = ix - 1
+                    upstream_ix = ix + 1
+                else:
+                    assert r["strand"] in ["+", "-"]
+
+                for neighbor_ix, location in [
+                    (upstream_ix, "upstream"),
+                    (downstream_ix, "downstream")
+                ]:
+                    if neighbor_ix < 0 or neighbor_ix == prots.shape[0]:
+                        continue
+                    # Add to the dict
+                    output[
+                        r["cluster"]
+                    ]["neighbors"][
+                        location
+                    ][
+                        prots.loc[neighbor_ix, "cluster"]
+                    ] += 1
+
+    # Return a list with entries for each unique protein cluster
+    return list(output.values())
 
 
 def index_proteins(
@@ -285,7 +416,8 @@ def integrate_assemblies(
         # Output is a list describing all proteins, as in the Readme
         prot_summary = summarize_proteins(
             gff_folder,
-            dedup_proteins
+            dedup_proteins,
+            gff_suffix=gff_suffix
         )
     except:
         exit_and_clean_up(temp_folder)

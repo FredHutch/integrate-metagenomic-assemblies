@@ -29,14 +29,11 @@ The format of the JSON will be as follows:
             "<ids of assembled proteins within the group>"
         ],
         "annotation": "<annotation of protein>",
-        "neighbors": [
-            {
-                "location": "<upstream or downstream>",
-                "protein_id": "<protein id of upstream neighbor>",
-                "count": "<number of assemblies with connection>",
-                "orientation": "<+ or ->"
+        "neighbors": {
+            "<upstream or downstream>": {
+                "<protein id of upstream neighbor>": "<number of assemblies with connection>"
             }
-        ],
+        }
     },
     {
         "etc"
