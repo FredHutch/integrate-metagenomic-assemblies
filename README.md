@@ -58,3 +58,5 @@ integrate_assemblies.py \
 To use this code, we recommend using the Docker image, because it contains all the
 needed dependencies and is validated with a set of tests. If that is not a satisfying
 option, see the Dockerfile to see how to set up the appropriate environment.
+
+[![Docker Repository on Quay](https://quay.io/repository/fhcrc-microbiome/integrate-metagenomic-assemblies/status "Docker Repository on Quay")](https://quay.io/repository/fhcrc-microbiome/integrate-metagenomic-assemblies)
