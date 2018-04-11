@@ -1,5 +1,5 @@
 FROM ubuntu:16.04
-MAINTAINER sminot@fredhutch.org
+LABEL MAINTAINER=sminot@fredhutch.org
 
 # Install prerequisites
 RUN apt update && \

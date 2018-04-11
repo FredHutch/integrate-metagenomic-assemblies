@@ -178,7 +178,7 @@ def deduplicate_proteins(
             if len(line) <= 1:
                 continue
             # Tab delimited lines
-            cluster, member = line.rstrip("\n").split("\t")
+            cluster, member, _ = line.rstrip("\n").split("\t", 2)
             # Make sure the cluster has a representative sequence
             assert cluster in rep_seqs
             cluster_members[cluster].append(member)
