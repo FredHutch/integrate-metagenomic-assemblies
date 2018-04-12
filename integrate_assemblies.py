@@ -368,6 +368,11 @@ def summarize_proteins(
                     # Make sure the neighbor is on the same contig
                     if r["seqname"] != prots.loc[neighbor_ix, "seqname"]:
                         continue
+                    # Note whether they are on the same strand (+) or opposite (-)
+                    if r["strand"] != prots.loc[neighbor_ix, "strand"]:
+                        location = location + "+"
+                    else:
+                        location = location + "-"
                     # Add to the dict
                     output[
                         r["cluster"]
