@@ -350,6 +350,9 @@ def summarize_proteins(
                 ]:
                     if neighbor_ix < 0 or neighbor_ix == prots.shape[0]:
                         continue
+                    # Make sure the neighbor is on the same contig
+                    if r["seqname"] != prots.loc[neighbor_ix, "seqname"]:
+                        continue
                     # Add to the dict
                     output[
                         r["cluster"]
