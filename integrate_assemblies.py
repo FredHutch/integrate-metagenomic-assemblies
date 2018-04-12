@@ -17,6 +17,31 @@ from Bio.SeqIO.FastaIO import SimpleFastaParser
 from batch_helpers.helpers import run_cmds, exit_and_clean_up
 
 
+def read_gff(fp):
+    """Read in a GFF file as a Pandas DataFrame."""
+
+    # Read in the whole file as a list
+    gff = [
+        line.split("\t") for line in open_handle(fp)
+        if line[0] != '#'
+    ]
+    # Subset to the lines with 9 columns
+    gff = [
+        line for line in gff
+        if len(line) == 9
+    ]
+    # Make a DataFrame
+    gff = pd.DataFrame(gff)
+
+    # Set the column names
+    gff.columns = [
+        "seqname", "source", "feature", 
+        "start", "end", "score", "strand", 
+        "frame", "attribute"
+    ]
+    return gff
+
+
 def split_s3_bucket_prefix(path):
     # Get the bucket name
     bucket = path[5:].split("/", 1)[0]
@@ -257,18 +282,8 @@ def summarize_proteins(
             # Read the file
             logging.info("Reading from " + fp)
             # Read in as a pandas DataFrame
-            prots = pd.read_table(
-                open_handle(fp),
-                comment="#",
-                header=None
-            )
+            prots = read_gff(fp)
             logging.info("Read in {:,} total annotations".format(prots.shape[0]))
-            # Set the column names
-            prots.columns = [
-                "seqname", "source", "feature", 
-                "start", "end", "score", "strand", 
-                "frame", "attribute"
-            ]
             # Subset to only the CDS features
             prots = prots.loc[prots["feature"] == "CDS"]
             # Reset the index
