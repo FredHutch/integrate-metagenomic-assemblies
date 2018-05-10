@@ -500,6 +500,7 @@ def write_results(
     all_output_files = [
         centroid_fasta,
         summary_json,
+        summary_hdf5,
         dmnd_fp,
         network_sif
     ]
