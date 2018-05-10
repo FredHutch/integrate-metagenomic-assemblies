@@ -386,6 +386,55 @@ def summarize_proteins(
     return list(output.values())
 
 
+def write_hdf5_summary(dat, fp_out):
+    """Write out a summary of the protein clusters in HDF5 format"""
+    cluster_members = []
+    gene_positions = []
+    orf_clusters = {}
+
+    for ix, cluster in enumerate(dat):
+
+        # Iterate over each member of the cluster
+        for member in cluster["members"]:
+            # Which ORFs are in which ORF clusters
+            cluster_members.append({
+                "cluster": cluster["protein_id"],
+                "member": member["ID"]
+            })
+
+            # What are the coordinates for each ORF
+            gene_positions.append(member)
+
+            # Which ORFs are in which clusters
+            orf_clusters[member["ID"]] = cluster["protein_id"]
+
+        if ix % 100000 == 0 and ix > 0:
+            logging.info("Reformatted data for {:,} protein clusters for HDF5 format".format(ix))
+    logging.info("Reformatted data for {:,} protein clusters for HDF5 format".format(ix + 1))
+
+    cluster_members = pd.DataFrame(cluster_members)
+    gene_positions = pd.DataFrame(gene_positions)
+    gene_positions["cluster"] = gene_positions["ID"].apply(orf_clusters.get)
+
+    store = pd.HDFStore(fp_out)
+    logging.info("Writing 'cluster_members' to HDF5")
+    cluster_members.to_hdf(
+        store,
+        'cluster_members',
+        format="table",
+        data_columns=True
+    )
+    logging.info("Writing 'gene_positions' to HDF5")
+    gene_positions.to_hdf(
+        store,
+        'gene_positions',
+        format="table",
+        data_columns=["seqname", "cluster"]
+    )
+    store.close()
+    logging.info("Done writing to HDF5")
+
+
 def write_results(
     dedup_proteins,
     prot_summary,
@@ -426,6 +475,11 @@ def write_results(
     run_cmds(["gzip", summary_json])
     summary_json = summary_json + ".gz"
 
+    # Write out the protein structure in HDF5 format
+    summary_hdf5 = os.path.join(temp_folder, output_name + ".hdf5")
+    logging.info("Writing out " + summary_hdf5)
+    write_hdf5_summary(prot_summary, summary_hdf5)
+
     # Make a network in SIF format
     network_sif = os.path.join(temp_folder, output_name + ".sif")
     logging.info("Writing out " + network_sif)
@@ -438,6 +492,7 @@ def write_results(
                     rel_loc,
                     "\t".join(list(neighbors.keys()))
                 ))
+
     # Compress the file
     run_cmds(["gzip", network_sif])
     network_sif = network_sif + ".gz"
