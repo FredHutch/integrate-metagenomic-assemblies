@@ -12,7 +12,7 @@ RUN apt update && \
 RUN pip3 install -e git://github.com/FredHutch/aws-batch-helpers.git@b06bcaf56479c24532ddcf87f4c2f3722e260144#egg=aws-batch-helpers
 
 # Install BioPython
-RUN pip3 install biopython==1.70 tables
+RUN pip3 install biopython==1.70 tables bucket_command_wrapper==0.3.0
 
 # Install DIAMOND v0.9.10
 RUN cd /usr/local/bin && \
