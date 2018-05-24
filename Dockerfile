@@ -39,7 +39,8 @@ WORKDIR /share
 # Add the entire folder
 ADD . /usr/local/ima
 # Link the main script to the PATH
-RUN ln -s /usr/local/ima/integrate_assemblies.py /usr/local/bin/
+RUN ln -s /usr/local/ima/integrate_assemblies.py /usr/local/bin/ && \
+    ln -s /usr/local/ima/cluster_proteins.py /usr/local/bin/
 
 # Run tests and then remove the folder
 RUN bats /usr/local/ima/tests/ && rm -r /usr/local/ima/tests/
