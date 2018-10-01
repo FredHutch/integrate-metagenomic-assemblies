@@ -346,7 +346,7 @@ def summarize_proteins(
                         output[
                             r["cluster"]
                         ]["annotation"].append(
-                            member_annot["product"]
+                            member_annot["product"].rstrip("\n")
                         )
 
                 # Now add out the downstream and upstream neighbors
@@ -425,7 +425,7 @@ def write_hdf5_summary(dat, fp_out):
         data_columns=True
     )
     logging.info("Writing 'gene_positions' to HDF5")
-    gene_positions.to_hdf(
+    gene_positions.applymap(str).fillna("").to_hdf(
         store,
         'gene_positions',
         format="table",
