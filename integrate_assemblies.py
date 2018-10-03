@@ -427,7 +427,7 @@ def write_hdf5_summary(dat, fp_out):
     logging.info("Writing 'gene_positions' to HDF5")
     # Get rid of columns that are entirely NaN
     gene_positions = gene_positions.loc[
-        :, ~gene_positions.isnull().all()
+        :, ~gene_positions.notnull().sum() > 0
     ]
     logging.info(gene_positions.head())
     logging.info(gene_positions.tail())
