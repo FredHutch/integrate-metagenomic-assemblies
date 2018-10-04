@@ -540,6 +540,7 @@ def overlapping_protein_gff_files(
         for sample_name, sample_fps in all_fps.items()
         if len(sample_fps) == 2
     }
+    assert len(all_fps) > 0, "Did not find any data in the indicated folders"
     logging.info("Found {:,} samples with both protein FASTA and GFF information".format(len(all_fps)))
     prot_fps = [
         sample_fps["protein_fasta"]
