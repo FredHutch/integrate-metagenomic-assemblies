@@ -20,25 +20,45 @@ from batch_helpers.helpers import run_cmds, exit_and_clean_up
 def read_gff(fp):
     """Read in a GFF file as a Pandas DataFrame."""
 
-    # Read in the whole file as a list
-    gff = [
-        line.split("\t") for line in open_handle(fp)
-        if line[0] != '#'
-    ]
-    # Subset to the lines with 9 columns
-    gff = [
-        line for line in gff
-        if len(line) == 9
-    ]
-    # Make a DataFrame
-    gff = pd.DataFrame(gff)
-
-    # Set the column names
-    gff.columns = [
-        "seqname", "source", "feature", 
-        "start", "end", "score", "strand", 
+    # Names of the columns
+    columns = [
+        "seqname", "source", "feature",
+        "start", "end", "score", "strand",
         "frame", "attribute"
     ]
+    n_columns = len(columns)
+
+    # Explicitly coerce the data in each column
+    column_types = [str, str, str, int, int, str, str, int, str]
+
+    # Read in the whole file as a list
+    gff = []
+
+    for line in open_handle(fp):
+        # Skip the commented lines
+        if line[0] == '#':
+            continue
+        
+        # Split on tabs
+        line = line.rstrip("\n").split("\t")
+        
+        # Subset to the lines with the right number of columns
+        if len(line) != n_columns:
+            continue
+
+        keep_line = True
+        for v, t in zip(line, column_types):
+            try:
+                v = t(v)
+            except:
+                keep_line = False
+
+        if keep_line:
+            gff.append(line)
+
+    # Make a DataFrame
+    gff = pd.DataFrame(gff, columns=columns)
+
     return gff
 
 
