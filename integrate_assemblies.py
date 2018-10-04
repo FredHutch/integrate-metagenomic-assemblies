@@ -451,7 +451,8 @@ def write_hdf5_summary(dat, fp_out):
         store,
         'gene_positions',
         format="table",
-        data_columns=["seqname", "cluster"]
+        data_columns=["seqname", "cluster"],
+        errors="backslashreplace"  # Any malformed data will be escaped with backslashes
     )
     store.close()
     logging.info("Done writing to HDF5")
