@@ -503,29 +503,11 @@ def write_results(
     logging.info("Writing out " + summary_hdf5)
     write_hdf5_summary(prot_summary, summary_hdf5)
 
-    # Make a network in SIF format
-    network_sif = os.path.join(temp_folder, output_name + ".sif")
-    logging.info("Writing out " + network_sif)
-    with open(network_sif, "wt") as fo:
-        for cluster_info in prot_summary:
-            cluster_id = cluster_info["protein_id"]
-            for rel_loc, neighbors in cluster_info["neighbors"].items():
-                fo.write("{}\t{}\t{}\n".format(
-                    cluster_id,
-                    rel_loc,
-                    "\t".join(list(neighbors.keys()))
-                ))
-
-    # Compress the file
-    run_cmds(["gzip", network_sif])
-    network_sif = network_sif + ".gz"
-
     all_output_files = [
         centroid_fasta,
         summary_json,
         summary_hdf5,
-        dmnd_fp,
-        network_sif
+        dmnd_fp
     ]
 
     return all_output_files
