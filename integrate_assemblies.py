@@ -406,7 +406,7 @@ def summarize_proteins(
     return list(output.values())
 
 
-def write_hdf5_summary(dat, fp_out):
+def write_hdf5_summary(dat, fp_out, max_str_len=116):
     """Write out a summary of the protein clusters in HDF5 format"""
     cluster_members = []
     gene_positions = []
@@ -444,6 +444,9 @@ def write_hdf5_summary(dat, fp_out):
         format="table",
         data_columns=True
     )
+    logging.info("Formatting all fields of `gene_positions` as strings")
+    gene_positions = gene_positions.applymap(lambda v: "" if v is None else str(v)[:max_str_len])
+    
     logging.info("Writing 'gene_positions' to HDF5")
     logging.info(gene_positions.head())
     logging.info(gene_positions.tail())
