@@ -450,13 +450,22 @@ def write_hdf5_summary(dat, fp_out, max_str_len=116):
     logging.info("Writing 'gene_positions' to HDF5")
     logging.info(gene_positions.head())
     logging.info(gene_positions.tail())
-    gene_positions.to_hdf(
-        store,
-        'gene_positions',
-        format="table",
-        data_columns=["seqname", "cluster"],
-        errors="backslashreplace"  # Any malformed data will be escaped with backslashes
-    )
+
+    # Skip over any contigs that raises errors
+    for contig_name, contig_df in gene_positions.groupby("seqname"):
+        try:
+            contig_df.to_hdf(
+                store,
+                'gene_positions',
+                format="table",
+                data_columns=["seqname", "cluster"],
+                append=True,
+                errors="backslashreplace"  # Any malformed data will be escaped with backslashes
+            )
+        except:
+            logging.info("Problem writing data for {}, skipping".format(contig_name))
+            logging.info("Skipped contig contained {:,} annotations".format(contig_df.shape[0]))
+
     store.close()
     logging.info("Done writing to HDF5")
 
