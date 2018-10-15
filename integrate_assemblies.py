@@ -348,8 +348,7 @@ def summarize_proteins(
                     output[r["cluster"]] = {
                         "protein_id": r["cluster"],
                         "members": [],
-                        "annotation": [],
-                        "neighbors": defaultdict(lambda: defaultdict(int))
+                        "annotation": []
                     }
                 # Add information for this member
                 member_annot = r.dropna().to_dict()
@@ -368,39 +367,6 @@ def summarize_proteins(
                         ]["annotation"].append(
                             member_annot["product"].rstrip("\n")
                         )
-
-                # Now add out the downstream and upstream neighbors
-                if r["strand"] == "+":
-                    downstream_ix = ix + 1
-                    upstream_ix = ix - 1
-                elif r["strand"] == "-":
-                    downstream_ix = ix - 1
-                    upstream_ix = ix + 1
-                else:
-                    assert r["strand"] in ["+", "-"]
-
-                for neighbor_ix, location in [
-                    (upstream_ix, "upstream"),
-                    (downstream_ix, "downstream")
-                ]:
-                    if neighbor_ix < 0 or neighbor_ix == prots.shape[0]:
-                        continue
-                    # Make sure the neighbor is on the same contig
-                    if r["seqname"] != prots.loc[neighbor_ix, "seqname"]:
-                        continue
-                    # Note whether they are on the same strand (+) or opposite (-)
-                    if r["strand"] != prots.loc[neighbor_ix, "strand"]:
-                        location = location + "+"
-                    else:
-                        location = location + "-"
-                    # Add to the dict
-                    output[
-                        r["cluster"]
-                    ]["neighbors"][
-                        location
-                    ][
-                        prots.loc[neighbor_ix, "cluster"]
-                    ] += 1
 
     # Return a list with entries for each unique protein cluster
     return list(output.values())
@@ -444,27 +410,25 @@ def write_hdf5_summary(dat, fp_out, max_str_len=116):
         format="table",
         data_columns=True
     )
-    logging.info("Formatting all fields of `gene_positions` as strings")
-    gene_positions = gene_positions.applymap(lambda v: "" if v is None else str(v)[:max_str_len])
+    # logging.info("Formatting all fields of `gene_positions` as strings")
+    # gene_positions = gene_positions.applymap(lambda v: "" if v is None else str(v)[:max_str_len])
     
     logging.info("Writing 'gene_positions' to HDF5")
     logging.info(gene_positions.head())
     logging.info(gene_positions.tail())
 
-    # Skip over any contigs that raises errors
-    for contig_name, contig_df in gene_positions.groupby("seqname"):
-        try:
-            contig_df.to_hdf(
-                store,
-                'gene_positions',
-                format="table",
-                data_columns=["seqname", "cluster"],
-                append=True,
-                errors="backslashreplace"  # Any malformed data will be escaped with backslashes
-            )
-        except:
-            logging.info("Problem writing data for {}, skipping".format(contig_name))
-            logging.info("Skipped contig contained {:,} annotations".format(contig_df.shape[0]))
+    try:
+        gene_positions.to_hdf(
+            store,
+            'gene_positions',
+            format="table",
+            data_columns=["seqname", "cluster"],
+            append=True,
+            errors="backslashreplace"  # Any malformed data will be escaped with backslashes
+        )
+    except:
+        logging.info("Problem writing gene positions")
+        exit_and_clean_up(temp_folder)
 
     store.close()
     logging.info("Done writing to HDF5")
