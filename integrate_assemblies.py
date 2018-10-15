@@ -372,7 +372,13 @@ def summarize_proteins(
     return list(output.values())
 
 
-def write_hdf5_summary(dat, fp_out, temp_folder, chunksize=10000):
+def write_hdf5_summary(
+    dat, 
+    fp_out, 
+    temp_folder, 
+    chunksize=10000, 
+    gene_positions_headers=["ID","Name","eC_number","end","gene","locus_tag","product","start","strand"]
+):
     """Write out a summary of the protein clusters in HDF5 format"""
     cluster_members = []
     gene_positions = []
@@ -412,7 +418,13 @@ def write_hdf5_summary(dat, fp_out, temp_folder, chunksize=10000):
     logging.info("Writing 'gene_positions' to HDF5")
     for ix in range(0, len(gene_positions), chunksize):
 
+        # Make a DataFrame for this particular chunk
         chunk_df = pd.DataFrame(gene_positions[ix: (ix + chunksize)])
+        
+        # Enforce particular headers for the `gene_positions` table
+        chunk_df = chunk_df.loc[:, gene_positions_headers]
+
+        # Add the annotation of the particular cluster each gene is in        
         chunk_df["cluster"] = chunk_df["ID"].apply(orf_clusters.get)
 
         for k in ["seqname", "cluster"]:
@@ -449,6 +461,7 @@ def write_results(
     prot_summary,
     temp_folder,
     output_name,
+    gene_positions_headers=["ID","Name","eC_number","end","gene","locus_tag","product","start","strand"]
 ):
     """Write all of the results to a set of files."""
     # Write out the centroids in FASTA format
@@ -487,7 +500,12 @@ def write_results(
     # Write out the protein structure in HDF5 format
     summary_hdf5 = os.path.join(temp_folder, output_name + ".hdf5")
     logging.info("Writing out " + summary_hdf5)
-    write_hdf5_summary(prot_summary, summary_hdf5, temp_folder)
+    write_hdf5_summary(
+        prot_summary, 
+        summary_hdf5, 
+        temp_folder, 
+        gene_positions_headers=gene_positions_headers
+    )
 
     all_output_files = [
         centroid_fasta,
@@ -549,7 +567,8 @@ def integrate_assemblies(
     output_folder,
     gff_suffix="gff",
     prot_suffix="fastp",
-    temp_folder="/share"
+    temp_folder="/share",
+    gene_positions_headers=["ID","Name","eC_number","end","gene","locus_tag","product","start","strand"]
 ):
     # Make a temporary folder for all files to be placed in
     temp_folder = os.path.join(temp_folder, str(uuid.uuid4())[:8])
@@ -614,6 +633,7 @@ def integrate_assemblies(
             prot_summary,
             temp_folder,
             output_name,
+            gene_positions_headers=gene_positions_headers
         )
     except:
         exit_and_clean_up(temp_folder)
