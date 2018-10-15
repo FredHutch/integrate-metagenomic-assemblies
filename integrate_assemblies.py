@@ -379,7 +379,7 @@ def write_hdf5_summary(
     chunksize=10000, 
     gene_positions_headers=[
         'ID',
-        'seqname'
+        'seqname',
         'start',
         'end',
         'strand'
@@ -476,7 +476,7 @@ def write_results(
     output_name,
     gene_positions_headers=[
         'ID',
-        'seqname'
+        'seqname',
         'start',
         'end',
         'strand'
@@ -594,7 +594,7 @@ def integrate_assemblies(
     temp_folder="/share",
     gene_positions_headers=[
         'ID',
-        'seqname'
+        'seqname',
         'start',
         'end',
         'strand'
