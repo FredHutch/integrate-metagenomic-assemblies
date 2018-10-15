@@ -372,7 +372,7 @@ def summarize_proteins(
     return list(output.values())
 
 
-def write_hdf5_summary(dat, fp_out, temp_folder, max_str_len=116):
+def write_hdf5_summary(dat, fp_out, temp_folder, chunksize=10000):
     """Write out a summary of the protein clusters in HDF5 format"""
     cluster_members = []
     gene_positions = []
@@ -394,13 +394,11 @@ def write_hdf5_summary(dat, fp_out, temp_folder, max_str_len=116):
             # Which ORFs are in which clusters
             orf_clusters[member["ID"]] = cluster["protein_id"]
 
-        if ix % 100000 == 0 and ix > 0:
+        if ix % chunksize == 0 and ix > 0:
             logging.info("Reformatted data for {:,} protein clusters for HDF5 format".format(ix))
     logging.info("Reformatted data for {:,} protein clusters for HDF5 format".format(ix + 1))
 
     cluster_members = pd.DataFrame(cluster_members)
-    gene_positions = pd.DataFrame(gene_positions)
-    gene_positions["cluster"] = gene_positions["ID"].apply(orf_clusters.get)
 
     store = pd.HDFStore(fp_out)
     logging.info("Writing 'cluster_members' to HDF5")
@@ -410,25 +408,37 @@ def write_hdf5_summary(dat, fp_out, temp_folder, max_str_len=116):
         format="table",
         data_columns=True
     )
-    # logging.info("Formatting all fields of `gene_positions` as strings")
-    # gene_positions = gene_positions.applymap(lambda v: "" if v is None else str(v)[:max_str_len])
     
     logging.info("Writing 'gene_positions' to HDF5")
-    logging.info(gene_positions.head())
-    logging.info(gene_positions.tail())
+    for ix in range(0, len(gene_positions), chunksize):
 
-    try:
-        gene_positions.to_hdf(
-            store,
-            'gene_positions',
-            format="table",
-            data_columns=["seqname", "cluster"],
-            append=True,
-            errors="backslashreplace"  # Any malformed data will be escaped with backslashes
-        )
-    except:
-        logging.info("Problem writing gene positions")
-        exit_and_clean_up(temp_folder)
+        chunk_df = pd.DataFrame(gene_positions[ix: (ix + chunksize)])
+        chunk_df["cluster"] = chunk_df["ID"].apply(orf_clusters.get)
+
+        for k in ["seqname", "cluster"]:
+            null_ix = chunk_df[k].isnull()
+            if null_ix.any():
+                logging.info("{:,} / {:,} of records being dropped for missing a cluster".format(
+                    null_ix.sum() / null_ix.shape[0]
+                ))
+                chunk_df = chunk_df.loc[~null_ix]
+    
+        try:
+            chunk_df.to_hdf(
+                store,
+                'gene_positions',
+                format="table",
+                data_columns=["seqname", "cluster"],
+                append=True
+            )
+        except:
+            logging.info("Problem writing gene positions")
+            exit_and_clean_up(temp_folder)
+        if (ix + chunksize) % chunksize * 10 == 0:
+            print("Wrote out ~{:,} / {:,} `gene_positions` annotations to HDF5".format(
+                ix + chunksize,
+                len(gene_positions)
+            ))
 
     store.close()
     logging.info("Done writing to HDF5")
