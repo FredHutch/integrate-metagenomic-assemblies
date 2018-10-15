@@ -377,7 +377,18 @@ def write_hdf5_summary(
     fp_out, 
     temp_folder, 
     chunksize=10000, 
-    gene_positions_headers=["ID","Name","eC_number","end","gene","locus_tag","product","start","strand"]
+    gene_positions_headers=[
+        'ID',
+        'seqname'
+        'start',
+        'end',
+        'strand'
+        'Name',
+        'gene',
+        'locus_tag',
+        'eC_number',
+        'product'
+    ]
 ):
     """Write out a summary of the protein clusters in HDF5 format"""
     cluster_members = []
@@ -428,6 +439,8 @@ def write_hdf5_summary(
         chunk_df["cluster"] = chunk_df["ID"].apply(orf_clusters.get)
 
         for k in ["seqname", "cluster"]:
+            msg = "{} not found in headers: {}".format(k, ", ".join(chunk_df.columns.values))
+            assert k in chunk_df.columns.values, msg
             null_ix = chunk_df[k].isnull()
             if null_ix.any():
                 logging.info("{:,} / {:,} of records being dropped for missing a cluster".format(
@@ -461,7 +474,18 @@ def write_results(
     prot_summary,
     temp_folder,
     output_name,
-    gene_positions_headers=["ID","Name","eC_number","end","gene","locus_tag","product","start","strand"]
+    gene_positions_headers=[
+        'ID',
+        'seqname'
+        'start',
+        'end',
+        'strand'
+        'Name',
+        'gene',
+        'locus_tag',
+        'eC_number',
+        'product'
+    ]
 ):
     """Write all of the results to a set of files."""
     # Write out the centroids in FASTA format
@@ -568,7 +592,18 @@ def integrate_assemblies(
     gff_suffix="gff",
     prot_suffix="fastp",
     temp_folder="/share",
-    gene_positions_headers=["ID","Name","eC_number","end","gene","locus_tag","product","start","strand"]
+    gene_positions_headers=[
+        'ID',
+        'seqname'
+        'start',
+        'end',
+        'strand'
+        'Name',
+        'gene',
+        'locus_tag',
+        'eC_number',
+        'product'
+]
 ):
     # Make a temporary folder for all files to be placed in
     temp_folder = os.path.join(temp_folder, str(uuid.uuid4())[:8])
