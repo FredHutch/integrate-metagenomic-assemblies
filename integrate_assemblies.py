@@ -451,8 +451,7 @@ def write_hdf5_summary(
             store,
             'gene_positions',
             format="table",
-            data_columns=["seqname", "cluster"],
-            append=True
+            data_columns=["seqname", "cluster"]
         )
     except:
         logging.info("Problem writing gene positions")
