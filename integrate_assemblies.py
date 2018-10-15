@@ -372,7 +372,7 @@ def summarize_proteins(
     return list(output.values())
 
 
-def write_hdf5_summary(dat, fp_out, max_str_len=116):
+def write_hdf5_summary(dat, fp_out, temp_folder, max_str_len=116):
     """Write out a summary of the protein clusters in HDF5 format"""
     cluster_members = []
     gene_positions = []
@@ -477,7 +477,7 @@ def write_results(
     # Write out the protein structure in HDF5 format
     summary_hdf5 = os.path.join(temp_folder, output_name + ".hdf5")
     logging.info("Writing out " + summary_hdf5)
-    write_hdf5_summary(prot_summary, summary_hdf5)
+    write_hdf5_summary(prot_summary, summary_hdf5, temp_folder)
 
     all_output_files = [
         centroid_fasta,
