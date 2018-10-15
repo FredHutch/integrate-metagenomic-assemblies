@@ -427,43 +427,36 @@ def write_hdf5_summary(
     )
     
     logging.info("Writing 'gene_positions' to HDF5")
-    for ix in range(0, len(gene_positions), chunksize):
+    # Make a DataFrame
+    gene_positions = pd.DataFrame(gene_positions)
 
-        # Make a DataFrame for this particular chunk
-        chunk_df = pd.DataFrame(gene_positions[ix: (ix + chunksize)])
-        
-        # Enforce particular headers for the `gene_positions` table
-        chunk_df = chunk_df.loc[:, gene_positions_headers]
+    # Enforce particular headers for the `gene_positions` table
+    gene_positions = gene_positions.reindex(columns=gene_positions_headers)
 
-        # Add the annotation of the particular cluster each gene is in        
-        chunk_df["cluster"] = chunk_df["ID"].apply(orf_clusters.get)
+    # Add the annotation of the particular cluster each gene is in        
+    gene_positions["cluster"] = gene_positions["ID"].apply(orf_clusters.get)
 
-        for k in ["seqname", "cluster"]:
-            msg = "{} not found in headers: {}".format(k, ", ".join(chunk_df.columns.values))
-            assert k in chunk_df.columns.values, msg
-            null_ix = chunk_df[k].isnull()
-            if null_ix.any():
-                logging.info("{:,} / {:,} of records being dropped for missing a cluster".format(
-                    null_ix.sum() / null_ix.shape[0]
-                ))
-                chunk_df = chunk_df.loc[~null_ix]
-    
-        try:
-            chunk_df.to_hdf(
-                store,
-                'gene_positions',
-                format="table",
-                data_columns=["seqname", "cluster"],
-                append=True
-            )
-        except:
-            logging.info("Problem writing gene positions")
-            exit_and_clean_up(temp_folder)
-        if (ix + chunksize) % chunksize * 10 == 0:
-            print("Wrote out ~{:,} / {:,} `gene_positions` annotations to HDF5".format(
-                ix + chunksize,
-                len(gene_positions)
+    for k in ["seqname", "cluster"]:
+        msg = "{} not found in headers: {}".format(k, ", ".join(gene_positions.columns.values))
+        assert k in gene_positions.columns.values, msg
+        null_ix = gene_positions[k].isnull()
+        if null_ix.any():
+            logging.info("{:,} / {:,} of records being dropped for missing a cluster".format(
+                null_ix.sum() / null_ix.shape[0]
             ))
+            gene_positions = gene_positions.loc[~null_ix]
+    
+    try:
+        gene_positions.to_hdf(
+            store,
+            'gene_positions',
+            format="table",
+            data_columns=["seqname", "cluster"],
+            append=True
+        )
+    except:
+        logging.info("Problem writing gene positions")
+        exit_and_clean_up(temp_folder)
 
     store.close()
     logging.info("Done writing to HDF5")
