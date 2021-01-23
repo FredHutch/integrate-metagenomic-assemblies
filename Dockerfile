@@ -1,4 +1,4 @@
-FROM ubuntu:16.04
+FROM ubuntu:20.04
 LABEL MAINTAINER=sminot@fredhutch.org
 
 # Install prerequisites
@@ -8,15 +8,12 @@ RUN apt update && \
     libcurl4-openssl-dev make gcc zlib1g-dev curl \
     cmake g++ libfile-slurp-perl jq
 
-# Install some helper code (pinned to a commit)
-RUN pip3 install -e git://github.com/FredHutch/aws-batch-helpers.git@b06bcaf56479c24532ddcf87f4c2f3722e260144#egg=aws-batch-helpers
-
 # Install BioPython
 RUN pip3 install biopython==1.70 tables bucket_command_wrapper==0.3.0
 
-# Install DIAMOND v0.9.10
+# Install DIAMOND v2.0.6
 RUN cd /usr/local/bin && \
-    wget -q https://github.com/bbuchfink/diamond/releases/download/v0.9.10/diamond-linux64.tar.gz && \
+    wget -q https://github.com/bbuchfink/diamond/releases/download/v2.0.6/diamond-linux64.tar.gz && \
     tar xzf diamond-linux64.tar.gz && \
     rm diamond-linux64.tar.gz
 
@@ -24,7 +21,7 @@ RUN cd /usr/local/bin && \
 RUN cd /usr/local/bin && \
     git clone https://github.com/soedinglab/MMseqs2.git && \
     cd MMseqs2 && \
-    git checkout 2-23394 && \
+    git checkout 12-113e3 && \
     mkdir build && \
     cd build && \
     cmake -DCMAKE_BUILD_TYPE=RELEASE -DCMAKE_INSTALL_PREFIX=. .. && \
